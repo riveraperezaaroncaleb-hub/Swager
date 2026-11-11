@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id         Int          @id @default(autoincrement())
+  nombre     String
+  email      String       @unique
+  password   String
+  rol        String       @default("consultor")
+  notas      Nota[]
+  historial  HistorialIA[]
+  chats      Conversacion[]
+}
+
+model Nota {
+  id         Int          @id @default(autoincrement())
+  titulo     String
+  contenido  String
+  usuarioId  Int
+  usuario    Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  historial  HistorialIA[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([usuarioId])
+}
+
+model HistorialIA {
+  id              Int           @id @default(autoincrement())
+  tipo            String
+  promptEntrada   String
+  respuestaSalida String
+  inputTokens     Int           @default(0)
+  outputTokens    Int           @default(0)
+  modeloUsado     String
+  notaId          Int?
+  usuarioId       Int?
+  conversacionId  String?
+  nota            Nota?         @relation(fields: [notaId], references: [id], onDelete: SetNull)
+  usuario         Usuario?      @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  conversacion    Conversacion? @relation(fields: [conversacionId], references: [id], onDelete: SetNull)
+  createdAt       DateTime      @default(now())
+
+  @@index([notaId])
+  @@index([usuarioId])
+  @@index([conversacionId])
+}
+
+model Conversacion {
+  id         String       @id @default(cuid())
+  titulo     String       @default("Nuevo chat")
+  usuarioId  Int?
+  usuario    Usuario?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  mensajes   ChatMessage[]
+  historial  HistorialIA[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([updatedAt])
+  @@index([usuarioId])
+}
+
+model ChatMessage {
+  id              Int          @id @default(autoincrement())
+  role            String
+  content         String
+  conversacionId  String
+  conversacion    Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+
+  @@index([conversacionId, createdAt])
+}

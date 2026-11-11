@@ -1,0 +1,32 @@
+{
+  "name": "notas-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:import:mysql": "node scripts/import-mysql.js",
+    "test": "cross-env DATABASE_URL=file:./test.db prisma db push --skip-generate --schema prisma/schema.prisma && cross-env DATABASE_URL=file:./test.db node --test"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.0",
+    "@prisma/client": "^6.19.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "mysql2": "^3.14.0",
+    "prisma": "^6.19.0",
+    "supertest": "^7.1.4",
+    "cross-env": "^7.0.3"
+  }
+}
