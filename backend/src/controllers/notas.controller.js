@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
-import { AppError } from "../utils/AppError.js";
+import { obtenerNotaPorId } from "../services/notas.service.js";
+import { AppError } from "../utils/errors.js";
 
 function parseId(value) {
   const id = Number(value);
@@ -24,11 +25,9 @@ export const notasController = {
 
   async obtenerPorId(req, res, next) {
     try {
-      const nota = await prisma.nota.findUnique({
-        where: { id: parseId(req.params.id) },
-        include: { usuario: { select: { id: true, nombre: true, email: true } } }
+      const nota = await obtenerNotaPorId(req.params.id, prisma, {
+        usuario: { select: { id: true, nombre: true, email: true } }
       });
-      if (!nota) throw new AppError("Nota no encontrada.", 404);
       res.json({ nota });
     } catch (error) {
       next(error);
@@ -37,17 +36,21 @@ export const notasController = {
 
   async crear(req, res, next) {
     try {
-      const usuario = await prisma.usuario.findUnique({
-        where: { id: req.body.usuarioId },
-        select: { id: true }
-      });
-      if (!usuario) throw new AppError("El usuario indicado no existe.", 404);
+      let usuarioId = null;
+      if (req.body.usuarioId !== undefined) {
+        const usuario = await prisma.usuario.findUnique({
+          where: { id: req.body.usuarioId },
+          select: { id: true }
+        });
+        if (!usuario) throw new AppError("El usuario indicado no existe.", 404);
+        usuarioId = usuario.id;
+      }
 
       const nota = await prisma.nota.create({
         data: {
           titulo: req.body.titulo,
           contenido: req.body.contenido,
-          usuarioId: usuario.id
+          usuarioId
         },
         include: { usuario: { select: { id: true, nombre: true, email: true } } }
       });

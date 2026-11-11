@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { validateBody } from "../middlewares/validate.js";
+import { validateBody } from "../middlewares/validar.js";
 import { createIAController } from "../controllers/ia.controller.js";
 
 const preguntarSchema = z.object({
@@ -25,9 +25,9 @@ const conversationTitleSchema = z.object({
   titulo: z.string().trim().min(1).max(100)
 }).strict();
 
-export function createIARouter(options) {
+export function createIARouter(options = {}) {
   const router = Router();
-  const controller = createIAController(options);
+  const controller = options.controller ?? createIAController(options);
 
   /**
    * @openapi
@@ -53,7 +53,7 @@ export function createIARouter(options) {
    * @openapi
    * /api/ia/preguntar:
    *   post:
-   *     summary: Envía una pregunta a DeepSeek usando el historial de la conversación
+   *     summary: Envía una pregunta a Claude usando el historial de la conversación
    *     description: "Responde como Server-Sent Events. Cada evento se entrega como data: JSON."
    *     tags: [IA]
    *     requestBody:
@@ -75,7 +75,7 @@ export function createIARouter(options) {
    *       400: { description: Pregunta inválida. }
    *       404: { description: Conversación o usuario no encontrado. }
    *       429: { description: Límite de solicitudes alcanzado. }
-   *       502: { description: Error del proveedor DeepSeek. }
+   *       502: { description: Claude no está disponible o rechazó las credenciales. }
    */
   router.post("/preguntar", validateBody(preguntarSchema), controller.preguntar);
   router.post("/ask", validateBody(preguntarSchema), controller.preguntar);
@@ -91,7 +91,38 @@ export function createIARouter(options) {
    *         description: Conversaciones persistidas en SQLite.
    */
   router.get("/conversaciones", controller.listarConversaciones);
+  /**
+   * @openapi
+   * /api/ia/historial:
+   *   get:
+   *     summary: Lista los registros de auditoría IA
+   *     tags: [IA]
+   *     parameters:
+   *       - in: query
+   *         name: tipo
+   *         schema: { type: string, enum: [preguntar, resumen] }
+   *       - in: query
+   *         name: limit
+   *         schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+   *     responses:
+   *       200: { description: Registros ordenados del más reciente al más antiguo. }
+   */
   router.get("/historial", controller.listarHistorial);
+  /**
+   * @openapi
+   * /api/ia/historial/{id}:
+   *   get:
+   *     summary: Obtiene un registro de auditoría IA
+   *     tags: [IA]
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema: { type: integer, minimum: 1 }
+   *     responses:
+   *       200: { description: Registro encontrado. }
+   *       404: { description: Registro no encontrado. }
+   */
   router.get("/historial/:id", controller.obtenerRegistroHistorial);
 
   /**
@@ -110,11 +141,50 @@ export function createIARouter(options) {
    *       404: { description: Conversación no encontrada. }
    */
   router.get("/conversaciones/:id", controller.obtenerConversacion);
+  /**
+   * @openapi
+   * /api/ia/conversaciones/{id}:
+   *   patch:
+   *     summary: Cambia el título de una conversación
+   *     tags: [IA]
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema: { type: string }
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [titulo]
+   *             properties:
+   *               titulo: { type: string, minLength: 1, maxLength: 100 }
+   *     responses:
+   *       200: { description: Conversación renombrada. }
+   *       404: { description: Conversación no encontrada. }
+   */
   router.patch(
     "/conversaciones/:id",
     validateBody(conversationTitleSchema),
     controller.actualizarConversacion
   );
+  /**
+   * @openapi
+   * /api/ia/conversaciones/{id}:
+   *   delete:
+   *     summary: Elimina una conversación y sus mensajes
+   *     tags: [IA]
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema: { type: string }
+   *     responses:
+   *       200: { description: Conversación eliminada. }
+   *       404: { description: Conversación no encontrada. }
+   */
   router.delete("/conversaciones/:id", controller.eliminarConversacion);
   return router;
 }

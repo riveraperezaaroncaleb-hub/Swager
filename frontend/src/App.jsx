@@ -170,7 +170,7 @@ export default function App() {
         )}
         <div className="sidebar-note">
           <span className="provider-dot" />
-          <div><strong>DeepSeek</strong><small>Conectado al backend</small></div>
+          <div><strong>Claude</strong><small>Conectado al backend</small></div>
         </div>
         <div className="sidebar-footer">Tus preguntas se procesan de forma segura en el servidor.</div>
       </aside>
@@ -178,7 +178,7 @@ export default function App() {
       <section className="chat-layout">
         <header className="chat-topbar">
           <div className="mobile-brand"><span className="brand-mark">D</span> DocuAI</div>
-          <span className="model-pill"><span className="provider-dot" /> DeepSeek AI</span>
+          <span className="model-pill"><span className="provider-dot" /> Claude AI</span>
         </header>
 
         <div className={`conversation ${messages.length === 0 ? "conversation-empty" : ""}`} ref={messageListRef} aria-live="polite">
@@ -187,7 +187,7 @@ export default function App() {
               <span className="welcome-icon">✦</span>
               <div className="welcome-kicker">DOCUAI ENTERPRISE · ASISTENTE IA</div>
               <h1>¿En qué puedo <span>ayudarte?</span></h1>
-              <p>Pregunta sobre tus ideas, notas o minutas. DeepSeek te responderá en español.</p>
+              <p>Pregunta sobre tus ideas, notas o minutas. Claude te responderá en español.</p>
               <div className="suggestions">
                 {[
                   "¿Cómo puedo organizar una minuta de reunión?",
@@ -204,7 +204,7 @@ export default function App() {
                 <article className={`message ${message.role}`} key={`${index}-${message.role}`}>
                   <div className="message-avatar">{message.role === "assistant" ? "D" : "TÚ"}</div>
                   <div className="message-body">
-                    <div className="message-label">{message.role === "assistant" ? "DEEPSEEK" : "TÚ"}</div>
+                    <div className="message-label">{message.role === "assistant" ? "CLAUDE" : "TÚ"}</div>
                     <p>{message.text || (busy && message.role === "assistant" ? "…" : "")}</p>
                     {message.model && <small className="model-caption">{message.model}</small>}
                   </div>
@@ -214,7 +214,7 @@ export default function App() {
                 <article className="message assistant">
                   <div className="message-avatar">D</div>
                   <div className="message-body">
-                    <div className="message-label">DEEPSEEK</div>
+                    <div className="message-label">CLAUDE</div>
                     <div className="typing"><i /><i /><i /><span>Preparando respuesta...</span></div>
                   </div>
                 </article>

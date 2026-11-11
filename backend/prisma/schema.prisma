@@ -22,8 +22,8 @@ model Nota {
   id         Int          @id @default(autoincrement())
   titulo     String
   contenido  String
-  usuarioId  Int
-  usuario    Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuarioId  Int?
+  usuario    Usuario?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   historial  HistorialIA[]
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt

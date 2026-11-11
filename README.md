@@ -1,13 +1,15 @@
-# DocuAI Enterprise
+# Laboratorio 5 — DocuAI Enterprise
 
-API Express para administrar usuarios, notas y chats con DeepSeek. La persistencia activa usa Prisma y SQLite.
+API REST con Express 5, Claude (SDK oficial de Anthropic), Prisma y SQLite. Incluye administración de notas, chat multi-turno, streaming SSE, auditoría de uso, Swagger UI y pruebas HTTP con la IA simulada.
 
 ## Requisitos
 
-- Node.js 20+
-- Una clave DeepSeek guardada como `DEEPSEEK_API_KEY` en `backend/.env`
+- Node.js 20 o posterior.
+- Una clave válida de Anthropic configurada solo en el backend.
 
-## Backend
+## Instalación y ejecución
+
+En PowerShell:
 
 ```powershell
 cd backend
@@ -15,24 +17,16 @@ Copy-Item .env.example .env
 npm install
 npm run db:generate
 npm run db:migrate
-npm run db:import:mysql
 npm run dev
 ```
 
-Configura `DATABASE_URL="file:./dev.db"` y `DEEPSEEK_API_KEY` en `backend/.env`. El importador copia registros de la base MySQL anterior sin borrarlos; requiere que conserves `DB_HOST`, `DB_USER`, `DB_PASS` y `DB_NAME` en ese archivo. Si no tienes datos en MySQL, omite `npm run db:import:mysql`. La API queda en `http://localhost:3000` y Swagger en `http://localhost:3000/api-docs`.
+Configura `ANTHROPIC_API_KEY` dentro de `backend/.env`; nunca la pongas en variables `VITE_*`, código del navegador, capturas ni repositorios. El modelo por defecto se configura mediante `CLAUDE_MODEL`. La base local se crea en `backend/prisma/dev.db`.
 
-`npm run db:import:mysql` es idempotente por ID: no reemplaza registros existentes de SQLite. La base MySQL original permanece intacta. El endpoint de chat guarda conversaciones y mensajes, envía el historial completo al modelo, transmite la respuesta por SSE y registra el consumo en `HistorialIA`. `IA_RATE_LIMIT_MAX` limita las peticiones de IA por IP (10 cada 15 minutos por defecto).
+Swagger UI: <http://localhost:3000/api-docs>
 
-## Pruebas
+OpenAPI JSON: <http://localhost:3000/api-docs.json>
 
-```powershell
-cd backend
-npm test
-```
-
-Las pruebas cubren el CRUD de usuarios y notas, la gestión de conversaciones, el historial, el streaming y el rate limit. Usan SQLite independiente (`prisma/test.db`) y un generador DeepSeek simulado; no consumen créditos.
-
-## Frontend
+Frontend:
 
 ```powershell
 cd frontend
@@ -40,146 +34,87 @@ npm install
 npm run dev
 ```
 
-Abre la dirección que indique Vite (por defecto `http://localhost:5173`). El chat puede crear conversaciones nuevas y reabrir el historial guardado.
-# Laboratorio 5: Respuestas de Reflexión e Integración de IA
+El frontend consume `http://localhost:3000/api` por defecto. Opcionalmente, configura `VITE_API_URL` en `frontend/.env`.
 
-Este documento contiene las respuestas a las preguntas de reflexión correspondientes al Laboratorio 5, abordando la integración de la API de Anthropic (Claude), manejo de errores, arquitectura de seguridad, optimización de costos y resolución de conflictos en el control de versiones.
+## Endpoints del laboratorio
 
----
+| Método | Ruta | Función | Área responsable |
+|---|---|---|---|
+| GET | `/api/notas` | Lista notas | Pendiente de asignar al equipo |
+| GET | `/api/notas/:id` | Obtiene una nota | Pendiente de asignar al equipo |
+| POST | `/api/notas` | Crea nota con título y contenido; propietario opcional | Pendiente de asignar al equipo |
+| DELETE | `/api/notas/:id` | Elimina una nota | Pendiente de asignar al equipo |
+| POST | `/api/ia/preguntar` | Chat libre con Claude; respuesta SSE y contexto multi-turno | Pendiente de asignar al equipo |
+| POST | `/api/notas/:id/resumen` | Resume en tres viñetas con Claude y registra tokens | Pendiente de asignar al equipo |
+| GET | `/api-docs` | Swagger UI interactivo | Integración |
 
-## 📋 Tabla de Contenidos
+El API también expone actualización de notas y CRUD de usuarios, historial de IA y conversaciones. El rate limit predeterminado es 10 solicitudes por IP cada 15 minutos (`IA_RATE_LIMIT_MAX`) y protege tanto `/api/ia` como el resumen de notas.
 
-1. [Seguridad de API Keys en el Frontend](#1-seguridad-de-api-keys-en-el-frontend)
-2. [Manejo de Errores y Semántica HTTP (Error 401 de Claude)](#2-manejo-de-errores-y-semántica-http-error-401-de-claude)
-3. [Parámetro `system` vs `messages`](#3-parámetro-system-vs-messages)
-4. [Métricas de Tokens y Control de Costos](#4-métricas-de-tokens-y-control-de-costos)
-5. [Validación de Entrada (`req.body`) y Consecuencias](#5-validación-de-entrada-reqbody-y-consecuencias)
-6. [Resolución de Conflictos de Git](#6-resolución-de-conflictos-de-git)
+## Organización y colaboración
 
----
+La estructura ejecutable actual se encuentra en `backend/src/`: `controllers/`, `middlewares/`, `routes/`, `services/`, `utils/`, `config/` y `lib/`. Las notas usan `notas.controller.js` y `notas.service.js`; la integración con Anthropic está en `claude.service.js`.
 
-## 1. Seguridad de API Keys en el Frontend
+Antes de entregar, completen con datos reales:
 
-### ¿Por qué la API key no puede estar en el frontend?
-La API key **jamás debe exponerse en el frontend** porque todo código ejecutado en el navegador del cliente es público e inseguro por naturaleza.
+| Integrante | Responsabilidad | Rama `feature/*` | Commits significativos |
+|---|---|---|---|
+| Integrante A | CRUD de notas | `feature/notas` | Agregar enlaces o hashes |
+| Integrante B | Claude, chat y resumen IA | `feature/ia` | Agregar enlaces o hashes |
 
-### ¿Cómo podría obtenerla un usuario?
-Cualquier usuario sin conocimientos avanzados de programación puede extraer la API key en segundos mediante los siguientes pasos:
+**Evidencia colaborativa pendiente de adjuntar:** ramas remotas, al menos cinco commits significativos por integrante, Pull Requests con revisión y enlaces a los PRs. El historial visible en este entorno no demuestra esos requisitos, por lo que este README no los presenta como cumplidos.
 
-1. **Abrir la aplicación:** Cargar la página web en un navegador (Chrome, Firefox, Edge, etc.).
-2. **Inspeccionar con DevTools:** Hacer clic derecho en la página y seleccionar *Inspeccionar* o presionar `F12`.
-3. **Pestaña Network (Red):** Al realizar una acción que consulte la IA, se puede inspeccionar la petición HTTP y ver la API key en los encabezados (*Headers*) o cuerpo (*Payload*) en texto plano.
-4. **Pestaña Sources (Fuentes):** Inspeccionar los archivos `.js` bundleados y buscar patrones/prefijos de llaves (por ejemplo, `sk-ant-...`).
+El `.gitignore` raíz excluye archivos `.env`, dependencias y bases SQLite; los archivos `.env.example` no contienen claves. Si una clave estuvo alguna vez en un commit o se compartió fuera del equipo, debe revocarse y reemplazarse: ignorar el archivo ahora no la elimina del historial de Git.
 
-> **⚠️ Consecuencias de una filtración:** Un atacante que obtenga la API key puede realizar peticiones masivas sin restricción a su favor, agotando los saldos de la cuenta o generando cobros excesivos imprevistos en la tarjeta de crédito vinculada.
+## Pruebas automatizadas
 
----
-
-## 2. Manejo de Errores y Semántica HTTP (Error 401 de Claude)
-
-### Respuesta de nuestra API ante un 401 de Claude
-Cuando la API de Anthropic/Claude devuelve un error `401 Unauthorized` (debido a una API Key inválida, vencida o ausente), el middleware de errores (`errorHandler.js`) intercepta la excepción y responde al cliente con un código de estado **`502 Bad Gateway`** y un cuerpo JSON genérico:
-
-```json
-{
-  "error": "IA_NO_DISPONIBLE"
-}
+```powershell
+cd backend
+npm test
 ```
 
-### ¿Por qué no se reenvía el 401 al cliente?
+Las pruebas usan SQLite aislado y un generador Claude simulado, sin llamar al proveedor ni gastar créditos. Cubren validación, chat multi-turno, streaming SSE, rate limit, CRUD, resumen, historial y el mapeo seguro de errores Anthropic.
 
-1. **Confusión de responsabilidad (Semántica HTTP):** Un estado `401` devuelto por nuestra API le indicaría al cliente que sus credenciales de usuario dentro de nuestro sistema no son válidas. En este escenario, el cliente está autenticado correctamente; la falla ocurre en la comunicación backend-a-tercero.
-2. **Seguridad por Abstracción:** No se debe revelar la infraestructura ni las razones internas del fallo (como claves vencidas o variables de entorno no configuradas), ya que provee información técnica útil para posibles atacantes.
+Comprobación manual en Swagger UI:
 
----
+1. Crear una nota con `titulo` y `contenido` (no se requiere `usuarioId`).
+2. Consultar el listado y el detalle.
+3. Probar un ID inexistente y un cuerpo inválido.
+4. Enviar una pregunta a `/api/ia/preguntar` y continuar usando el `conversationId` recibido.
+5. Resumir la nota y comprobar las tres viñetas y el registro en `/api/ia/historial`.
+6. Eliminar la nota.
+7. Probar una clave Anthropic inválida solo en un entorno controlado: la API debe devolver `502` con `IA_NO_DISPONIBLE`. No guardes ni captures la clave falsa.
 
-## 3. Parámetro `system` vs `messages`
+**Capturas de Swagger y casos marcados con ★: pendientes de generar desde el navegador** después de levantar backend y frontend con una clave de desarrollo. No se incluyen capturas simuladas.
 
-### Definición de conceptos
+## Preguntas de reflexión
 
-* **Parámetro `system`:** Define el rol global, comportamiento, tono, reglas de seguridad y formato de salida del modelo. Funciona como el marco de referencia o contexto base previo a cualquier interacción.
-* **Contenido de `messages`:** Representa la conversación activa (historial o turnos del usuario/asistente). Es el contenido o petición puntual que el modelo debe procesar en esa llamada específica.
+### 1. ¿Por qué la API key no debe estar en el frontend?
 
-### Ejemplo de Prueba en el Laboratorio
+Todo el código y las solicitudes del navegador son inspeccionables. Una clave en React, `VITE_*` o los headers visibles para el cliente puede copiarse y usarse fuera de la aplicación. La clave se lee únicamente en el proceso backend y se excluye `.env` del repositorio. Si se filtró previamente, hay que revocarla.
 
-* **Endpoint evaluado:** `POST /api/notas/:id/resumen`
-* **Configuración del prompt:**
+### 2. ¿Cómo se manejan los errores de Anthropic y por qué?
 
-```javascript
-// Configuración enviada a la API de Claude
-const params = {
-  system: "Eres un asistente de síntesis ejecutiva. Resume el texto proporcionado exactamente en 3 viñetas breves, utilizando un tono formal y en idioma español.",
-  messages: [
-    {
-      role: "user",
-      content: "El equipo de desarrollo se reunió hoy a las 10 AM. Se acordó migrar la base de datos a PostgreSQL la próxima semana. Juan se encargará de los scripts de migración y Maria probará los endpoints..."
-    }
-  ]
-};
-```
+El middleware identifica `Anthropic.APIError` sin exponer el mensaje del proveedor ni credenciales: autenticación inválida (401 de Anthropic) se transforma en `502 IA_NO_DISPONIBLE`; límite del proveedor (429) en `429 IA_LIMITE_ALCANZADO`; sobrecarga (529) en `503 IA_NO_DISPONIBLE`. El cliente de nuestra API no debe interpretar un fallo de credenciales del servidor como si fueran credenciales propias.
 
-* **Resultado devuelto por la IA:**
-  * Reunión del equipo de desarrollo realizada a las 10 AM.
-  * Acuerdo de migración a base de datos PostgreSQL programado para la próxima semana.
-  * Asignación de tareas: Juan ejecuta scripts de migración y María realiza pruebas de endpoints.
+### 3. ¿Cuál es la diferencia entre `system` y `messages`?
 
----
+`system` define el comportamiento e instrucciones globales del asistente. `messages` contiene los turnos `user` y `assistant`; se recuperan de SQLite y se envían en orden para mantener el contexto de la conversación. La integración traduce el mensaje interno de sistema al parámetro `system` que espera Anthropic.
 
-## 4. Métricas de Tokens y Control de Costos
+### 4. ¿Cómo se registran tokens y se controlan costos?
 
-### Registro de llamadas realizadas
+Cada respuesta completada registra `input_tokens`, `output_tokens`, modelo, entrada y respuesta en `HistorialIA`. `max_tokens` limita la salida; Zod limita preguntas a 5,000 caracteres y express-rate-limit restringe frecuencia por IP. No se presentan cifras de consumo como mediciones reales sin una respuesta verificada del proveedor.
 
-| Endpoint / Prueba | `input_tokens` | `output_tokens` |
-| :--- | :---: | :---: |
-| `POST /api/ia/preguntar` | 24 | 85 |
-| `POST /api/notas/1/resumen` | 142 | 58 |
+### 5. ¿Qué aporta validar `req.body` con Zod antes de invocar la IA?
 
-### Mecanismos para limitar el costo
+Rechaza campos faltantes, tipos incorrectos y entradas excesivas antes de enviar solicitudes costosas. El middleware sustituye `req.body` con los datos validados/normalizados; los errores siguen el flujo centralizado de `AppError`.
 
-1. **Parámetro `max_tokens`:** Se envía en el SDK dentro de `client.messages.create`. Garantiza un límite superior para los `output_tokens` producidos por el modelo en cada consulta.
-2. **Validación de entrada (Zod):** Configurar restricciones de longitud máxima en el backend (ej. `.max(2000)`) previene peticiones excesivamente largas que incrementen innecesariamente los `input_tokens`.
+### 6. ¿Cómo se resolvió el conflicto de integración entre `feature/notas` y `feature/ia`?
 
----
+El código integrado mantiene las rutas CRUD de notas y la ruta de resumen IA en `backend/src/routes/notas.routes.js`; el resumen reutiliza `notas.service.js` para obtener y validar la nota. **El conflicto y su resolución deben respaldarse con el PR/commit real del equipo**: no hay evidencia suficiente en el historial disponible para afirmar quién resolvió el conflicto ni qué revisión se realizó.
 
-## 5. Validación de Entrada (`req.body`) y Consecuencias
+## Entregables que faltan para cerrar el laboratorio
 
-Omitir la validación de los datos entrantes mediante un middleware (ej. Zod) antes de llamar a la API de Claude trae graves problemas:
-
-1. **Desperdicio de presupuesto:** Permite el envío de payloads masivos (ej. textos de +100,000 caracteres) o peticiones maliciosas que disparan el conteo de `input_tokens`, agotando los créditos velozmente.
-2. **Peticiones fallidas a terceros (Errores 400 no controlados):** Si un cliente envía un `req.body` vacío `{}` o sin la clave requerida (`pregunta`/`contenido`), la API de Claude reaccionará con un error `400 Invalid Request`. Sin validación previa local, la API consume ancho de banda y tiempo de procesamiento en llamadas fallidas previsibles.
-
----
-
-## 6. Resolución de Conflictos de Git
-
-### Conflicto detectado
-Al intentar integrar la rama `feature/ia` (Integrante B) a `main` (que ya incluía los avances de `feature/notas` del Integrante A), ocurrió un conflicto de fusión en el archivo:
-`src/routes/notas.routes.js`
-
-* **Integrante A (`feature/notas`):** Agregó los endpoints CRUD (`GET /:id` y `DELETE /:id`).
-* **Integrante B (`feature/ia`):** Importó `claude.service.js` y añadió el endpoint `POST /:id/resumen`.
-
-### Pasos de resolución
-
-1. Actualización de rama base:
-   ```bash
-   git checkout main
-   git pull
-   ```
-2. Iniciar el proceso de fusión desde la rama de trabajo:
-   ```bash
-   git checkout feature/ia
-   git merge main
-   ```
-3. **Edición Manual:** Se abrió `src/routes/notas.routes.js` en VS Code para resolver los bloques de conflicto (`<<<<<<<`, `=======`, `>>>>>>>`). Se conservaron tanto las importaciones del servicio de IA como las rutas CRUD existentes, organizándolas limpiamente.
-4. **Verificación y Confirmación:**
-   ```bash
-   # Comprobación local
-   npm run dev
-
-   # Subir solución
-   git add src/routes/notas.routes.js
-   git commit -m "fix: resolver conflicto en rutas de notas"
-   git push origin feature/ia
-   ```#   S w a g e r  
- 
+- Publicar o verificar la URL del repositorio y que `main` esté actualizada.
+- Adjuntar enlaces a los Pull Requests y evidencia de revisión/commits de ambos integrantes.
+- Generar y agregar capturas reales de Swagger UI para los casos requeridos.
+- Confirmar en el navegador los endpoints Swagger; la documentación también puede comprobarse con `GET /api-docs.json`.

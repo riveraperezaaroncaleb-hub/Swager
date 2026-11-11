@@ -1,6 +1,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
+import Anthropic from "@anthropic-ai/sdk";
 
 process.env.DATABASE_URL = "file:./test.db";
 
@@ -9,14 +10,18 @@ const { createApp } = await import("../src/app.js");
 const prisma = new PrismaClient();
 const generatedMessages = [];
 
-async function* fakeDeepSeek(messages) {
+async function* fakeClaude(messages) {
   generatedMessages.push(messages);
-  yield { type: "delta", text: "Respuesta " };
-  yield { type: "delta", text: "simulada." };
+  const isSummary = messages.at(-1).content.includes("exactamente tres viñetas");
+  yield {
+    type: "delta",
+    text: isSummary ? "- Punto uno.\n- Punto dos.\n- Punto tres." : "Respuesta "
+  };
+  if (!isSummary) yield { type: "delta", text: "simulada." };
   yield {
     type: "done",
     usage: { inputTokens: 7, outputTokens: 4 },
-    model: "deepseek-test"
+    model: "claude-test"
   };
 }
 
@@ -28,7 +33,7 @@ async function clearDatabase() {
   await prisma.usuario.deleteMany();
 }
 
-const app = createApp({ db: prisma, streamAI: fakeDeepSeek, iaLimit: 20 });
+const app = createApp({ db: prisma, streamAI: fakeClaude, iaLimit: 20 });
 
 before(async () => {
   await prisma.$connect();
@@ -118,7 +123,7 @@ test("transmite respuesta, persiste el chat y reutiliza sus mensajes previos", a
 test("aplica rate limit al endpoint de IA", async () => {
   const limitedApp = createApp({
     db: prisma,
-    streamAI: fakeDeepSeek,
+    streamAI: fakeClaude,
     iaLimit: 1,
     iaWindowMs: 60_000
   });
@@ -126,12 +131,14 @@ test("aplica rate limit al endpoint de IA", async () => {
   const first = await request(limitedApp)
     .post("/api/ia/preguntar")
     .send({ pregunta: "Pregunta dentro del límite" });
-  const second = await request(limitedApp)
-    .post("/api/ia/preguntar")
-    .send({ pregunta: "Pregunta fuera del límite" });
+  const note = await prisma.nota.create({
+    data: { titulo: "Minuta", contenido: "Resumen limitado.", usuarioId: null }
+  });
+  const second = await request(limitedApp).post(`/api/notas/${note.id}/resumen`);
 
   assert.equal(first.status, 200);
   assert.equal(second.status, 429);
+  await prisma.nota.delete({ where: { id: note.id } });
 });
 
 test("CRUD de usuarios y notas persiste en SQLite", async () => {
@@ -184,8 +191,90 @@ test("CRUD de usuarios y notas persiste en SQLite", async () => {
   assert.equal(deletedNote.status, 200);
   const missingNote = await request(app).get(`/api/notas/${noteId}`);
   assert.equal(missingNote.status, 404);
+  const invalidNote = await request(app).post("/api/notas").send({ titulo: "", contenido: "" });
+  assert.equal(invalidNote.status, 400);
   const deletedUser = await request(app).delete(`/api/usuarios/${userId}`);
   assert.equal(deletedUser.status, 200);
   const missingUser = await request(app).get(`/api/usuarios/${userId}`);
   assert.equal(missingUser.status, 404);
+});
+
+test("crea una nota sin propietario y resume mediante el servicio Claude", async () => {
+  const created = await request(app)
+    .post("/api/notas")
+    .send({ titulo: "Resumen de prueba", contenido: "Decisiones y próximos pasos." });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.nota.usuarioId, null);
+
+  const response = await request(app).post(`/api/notas/${created.body.nota.id}/resumen`);
+  assert.equal(response.status, 200);
+  assert.equal((response.body.resumen.match(/^- /gm) || []).length, 3);
+  assert.equal(response.body.uso.modeloUsado, "claude-test");
+
+  const history = await prisma.historialIA.findUnique({
+    where: { id: response.body.historialId }
+  });
+  assert.equal(history.tipo, "resumen");
+  assert.equal(history.notaId, created.body.nota.id);
+  assert.match(history.promptEntrada, /exactamente tres viñetas/);
+
+  await request(app).delete(`/api/notas/${created.body.nota.id}`);
+});
+
+test("traduce errores Anthropic 401, 429 y 529 a respuestas seguras", async () => {
+  const cases = [
+    {
+      error: new Anthropic.AuthenticationError(
+        401, { type: "authentication_error", message: "Invalid API key" }, "Unauthorized", new Headers()
+      ),
+      status: 502,
+      body: { error: "IA_NO_DISPONIBLE" }
+    },
+    {
+      error: new Anthropic.RateLimitError(
+        429, { type: "rate_limit_error", message: "Rate limited" }, "Rate limited", new Headers()
+      ),
+      status: 429,
+      body: { error: "IA_LIMITE_ALCANZADO" }
+    },
+    {
+      error: new Anthropic.OverloadedError(
+        529, { type: "overloaded_error", message: "Overloaded" }, "Overloaded", new Headers()
+      ),
+      status: 503,
+      body: { error: "IA_NO_DISPONIBLE" }
+    }
+  ];
+  const note = await prisma.nota.create({
+    data: { titulo: "Nota para fallar", contenido: "Texto.", usuarioId: null }
+  });
+
+  for (const { error, status, body } of cases) {
+    const failingApp = createApp({
+      db: prisma,
+      iaLimit: 5,
+      streamAI: async function* () {
+        throw error;
+      }
+    });
+    const response = await request(failingApp).post(`/api/notas/${note.id}/resumen`);
+    assert.equal(response.status, status);
+    assert.deepEqual(response.body, body);
+  }
+  await prisma.nota.delete({ where: { id: note.id } });
+});
+
+test("documenta endpoints del laboratorio en Swagger", async () => {
+  const ui = await request(app).get("/api-docs/");
+  assert.equal(ui.status, 200);
+  const spec = await request(app).get("/api-docs.json");
+  assert.equal(spec.status, 200);
+  for (const path of [
+    "/api/notas",
+    "/api/notas/{id}",
+    "/api/notas/{id}/resumen",
+    "/api/ia/preguntar"
+  ]) {
+    assert.ok(spec.body.paths[path], `Swagger no documenta ${path}`);
+  }
 });

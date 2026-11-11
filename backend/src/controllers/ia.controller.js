@@ -1,5 +1,7 @@
-import { streamDeepSeek } from "../services/deepseekService.js";
-import { AppError } from "../utils/AppError.js";
+import Anthropic from "@anthropic-ai/sdk";
+import { streamClaude } from "../services/claude.service.js";
+import { obtenerNotaPorId } from "../services/notas.service.js";
+import { AppError } from "../utils/errors.js";
 import { prisma } from "../lib/prisma.js";
 
 const systemMessage = {
@@ -18,7 +20,7 @@ function createConversationTitle(question) {
 
 export function createIAController({
   db = prisma,
-  streamAI = streamDeepSeek
+  streamAI = streamClaude
 } = {}) {
   return {
     async listarHistorial(req, res, next) {
@@ -166,7 +168,7 @@ export function createIAController({
         ];
         let answer = "";
         let usage = { inputTokens: 0, outputTokens: 0 };
-        let model = process.env.DEEPSEEK_MODEL || "deepseek-flash";
+        let model = process.env.CLAUDE_MODEL || "claude-haiku-4-5-20251001";
 
         for await (const event of streamAI(messages, { signal: abortController.signal })) {
           if (event.type === "delta") {
@@ -178,7 +180,7 @@ export function createIAController({
           }
         }
 
-        if (!answer.trim()) throw new AppError("DeepSeek devolvió una respuesta vacía.", 502);
+        if (!answer.trim()) throw new AppError("Claude devolvió una respuesta vacía.", 502);
 
         await db.$transaction([
           db.chatMessage.create({
@@ -217,9 +219,9 @@ export function createIAController({
           if (!res.destroyed && !res.writableEnded) {
             sendEvent(res, {
               type: "error",
-              error: error instanceof AppError
-                ? error.message
-                : "No se pudo completar la respuesta."
+              error: error instanceof Anthropic.APIError
+                ? (error.status === 429 ? "IA_LIMITE_ALCANZADO" : "IA_NO_DISPONIBLE")
+                : error.code || "IA_NO_DISPONIBLE"
             });
             res.end();
           }
@@ -235,8 +237,7 @@ export function createIAController({
         if (!Number.isSafeInteger(notaId) || notaId < 1) {
           throw new AppError("El ID debe ser un entero positivo.", 400);
         }
-        const nota = await db.nota.findUnique({ where: { id: notaId } });
-        if (!nota) throw new AppError("Nota no encontrada.", 404);
+        const nota = await obtenerNotaPorId(notaId, db);
 
         const prompt = [
           "Resume esta nota en español usando exactamente tres viñetas.",
@@ -246,7 +247,7 @@ export function createIAController({
         ].join("\n\n");
         let answer = "";
         let usage = { inputTokens: 0, outputTokens: 0 };
-        let model = process.env.DEEPSEEK_MODEL || "deepseek-flash";
+        let model = process.env.CLAUDE_MODEL || "claude-haiku-4-5-20251001";
         const messages = [systemMessage, { role: "user", content: prompt }];
 
         for await (const event of streamAI(messages)) {
@@ -256,7 +257,7 @@ export function createIAController({
             model = event.model || model;
           }
         }
-        if (!answer.trim()) throw new AppError("DeepSeek devolvió una respuesta vacía.", 502);
+        if (!answer.trim()) throw new AppError("Claude devolvió una respuesta vacía.", 502);
 
         const [historialIA] = await db.$transaction([
           db.historialIA.create({

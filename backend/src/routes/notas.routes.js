@@ -1,14 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
-import { validateBody } from "../middlewares/validate.js";
+import { validateBody } from "../middlewares/validar.js";
 import { notasController } from "../controllers/notas.controller.js";
 import { iaController } from "../controllers/ia.controller.js";
 
-const router = Router();
 const notaSchema = z.object({
   titulo: z.string().trim().min(1).max(100),
   contenido: z.string().trim().min(1),
-  usuarioId: z.coerce.number().int().positive()
+  usuarioId: z.coerce.number().int().positive().optional()
 }).strict();
 const actualizarNotaSchema = z.object({
   titulo: z.string().trim().min(1).max(100).optional(),
@@ -16,17 +15,23 @@ const actualizarNotaSchema = z.object({
   usuarioId: z.coerce.number().int().positive().optional()
 }).strict().refine((body) => Object.keys(body).length > 0, "Envía al menos un campo.");
 
+export function createNotasRouter({
+  summaryController = iaController,
+  iaRateLimit = (_req, _res, next) => next()
+} = {}) {
+  const router = Router();
+
 /**
  * @openapi
  * components:
  *   schemas:
  *     NotaInput:
  *       type: object
- *       required: [titulo, contenido, usuarioId]
+ *       required: [titulo, contenido]
  *       properties:
  *         titulo: { type: string, maxLength: 100, example: "Minuta de reunión" }
  *         contenido: { type: string, example: "Se revisaron los objetivos del trimestre." }
- *         usuarioId: { type: integer, minimum: 1, example: 1 }
+ *         usuarioId: { type: integer, minimum: 1, example: 1, nullable: true }
  *     Nota:
  *       allOf:
  *         - $ref: '#/components/schemas/NotaInput'
@@ -57,7 +62,7 @@ const actualizarNotaSchema = z.object({
  *                   type: array
  *                   items: { $ref: '#/components/schemas/Nota' }
  */
-router.get("/", notasController.listar);
+  router.get("/", notasController.listar);
 
 /**
  * @openapi
@@ -75,7 +80,7 @@ router.get("/", notasController.listar);
  *       400: { description: Datos inválidos. }
  *       404: { description: Usuario no encontrado. }
  */
-router.post("/", validateBody(notaSchema), notasController.crear);
+  router.post("/", validateBody(notaSchema), notasController.crear);
 
 /**
  * @openapi
@@ -104,7 +109,7 @@ router.post("/", validateBody(notaSchema), notasController.crear);
  *       400: { description: Datos inválidos. }
  *       404: { description: Nota o usuario no encontrado. }
  */
-router.put("/:id", validateBody(actualizarNotaSchema), notasController.actualizar);
+  router.put("/:id", validateBody(actualizarNotaSchema), notasController.actualizar);
 
 /**
  * @openapi
@@ -122,7 +127,7 @@ router.put("/:id", validateBody(actualizarNotaSchema), notasController.actualiza
  *       400: { description: ID inválido. }
  *       404: { description: Nota no encontrada. }
  */
-router.get("/:id", notasController.obtenerPorId);
+  router.get("/:id", notasController.obtenerPorId);
 
 /**
  * @openapi
@@ -140,13 +145,13 @@ router.get("/:id", notasController.obtenerPorId);
  *       400: { description: ID inválido. }
  *       404: { description: Nota no encontrada. }
  */
-router.delete("/:id", notasController.eliminar);
+  router.delete("/:id", notasController.eliminar);
 
 /**
  * @openapi
  * /api/notas/{id}/resumen:
  *   post:
- *     summary: Genera un resumen de tres viñetas y registra su consumo
+ *     summary: Genera un resumen de tres viñetas con Claude y registra su consumo
  *     tags: [IA]
  *     parameters:
  *       - in: path
@@ -154,11 +159,14 @@ router.delete("/:id", notasController.eliminar);
  *         required: true
  *         schema: { type: integer, minimum: 1 }
  *     responses:
- *       200: { description: Resumen y tokens reportados por DeepSeek. }
+ *       200: { description: Resumen y tokens reportados por Claude. }
  *       404: { description: Nota no encontrada. }
  *       502: { description: Error del proveedor de IA. }
  */
-router.post("/:id/resumen", iaController.resumirNota);
-router.post("/:id/summarize", iaController.resumirNota);
+  router.post("/:id/resumen", iaRateLimit, summaryController.resumirNota);
+  router.post("/:id/summarize", iaRateLimit, summaryController.resumirNota);
 
-export default router;
+  return router;
+}
+
+export default createNotasRouter();

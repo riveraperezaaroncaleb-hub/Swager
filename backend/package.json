@@ -13,20 +13,21 @@
     "test": "cross-env DATABASE_URL=file:./test.db prisma db push --skip-generate --schema prisma/schema.prisma && cross-env DATABASE_URL=file:./test.db node --test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
+    "@prisma/client": "^6.19.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
     "express-rate-limit": "^7.5.0",
-    "@prisma/client": "^6.19.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "mysql2": "^3.14.0",
     "prisma": "^6.19.0",
-    "supertest": "^7.1.4",
-    "cross-env": "^7.0.3"
+    "supertest": "^7.1.4"
   }
 }

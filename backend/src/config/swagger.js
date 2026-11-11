@@ -10,7 +10,7 @@ export const swaggerSpec = swaggerJsdoc({
     info: {
       title: "DocuAI Enterprise API",
       version: "1.0.0",
-      description: "API REST de usuarios, notas y auditoría de interacciones con DeepSeek."
+      description: "API REST de usuarios, notas y auditoría de interacciones con Claude."
     },
     servers: [{ url: "http://localhost:3000" }]
   },

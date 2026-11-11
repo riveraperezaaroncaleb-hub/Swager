@@ -3,10 +3,11 @@ import cors from "cors";
 import { rateLimit } from "express-rate-limit";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger.js";
-import notasRouter from "./routes/notas.routes.js";
+import { createNotasRouter } from "./routes/notas.routes.js";
 import { createIARouter } from "./routes/ia.routes.js";
+import { createIAController } from "./controllers/ia.controller.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
-import { AppError } from "./utils/AppError.js";
+import { AppError } from "./utils/errors.js";
 import usuariosRouter from "./routes/usuarios.js";
 import { prisma } from "./lib/prisma.js";
 
@@ -17,7 +18,6 @@ export function createApp({
   iaWindowMs = 15 * 60 * 1000
 } = {}) {
   const app = express();
-  const iaRouter = createIARouter({ db, streamAI });
   const iaRateLimit = rateLimit({
     windowMs: iaWindowMs,
     limit: iaLimit,
@@ -25,6 +25,9 @@ export function createApp({
     legacyHeaders: false,
     message: { error: "Límite de solicitudes de IA alcanzado. Inténtalo más tarde." }
   });
+  const iaController = createIAController({ db, streamAI });
+  const iaRouter = createIARouter({ controller: iaController });
+  const notasRouter = createNotasRouter({ summaryController: iaController, iaRateLimit });
 
   app.use(cors({ origin: process.env.CLIENT_ORIGIN || "http://localhost:5173" }));
   app.use(express.json({ limit: "1mb" }));

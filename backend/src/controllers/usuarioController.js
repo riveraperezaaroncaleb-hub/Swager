@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
-import { AppError } from "../utils/AppError.js";
+import { AppError } from "../utils/errors.js";
 
 const publicFields = { id: true, nombre: true, email: true, rol: true };
 
